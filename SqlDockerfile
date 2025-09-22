@@ -1,0 +1,18 @@
+FROM mcr.microsoft.com/mssql/server:2022-latest
+
+USER root
+ENV DEBIAN_FRONTEND=noninteractive ACCEPT_EULA=Y
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends curl gnupg ca-certificates apt-transport-https unixodbc-dev \
+ && mkdir -p /etc/apt/sources.list.d /usr/share/keyrings \
+ && curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > /usr/share/keyrings/ms.gpg \
+ && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/ms.gpg] https://packages.microsoft.com/ubuntu/22.04/prod jammy main" > /etc/apt/sources.list.d/msprod.list \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends mssql-tools18 \
+ && ln -sf /opt/mssql-tools18/bin/sqlcmd /usr/local/bin/sqlcmd \
+ && rm -rf /var/lib/apt/lists/*
+
+ENV PATH="/opt/mssql-tools18/bin:${PATH}"
+
+USER mssql

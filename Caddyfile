@@ -1,0 +1,21 @@
+{
+  email ${LETSENCRYPT_EMAIL}
+}
+
+${DOMAIN} {
+  reverse_proxy frontend:3000
+
+  handle_errors {
+    @bad status 502 503 504
+    handle @bad {
+      root * /srv/fallback
+      rewrite * /fallback.html
+      file_server
+    }
+  }
+}
+
+api.${DOMAIN} {
+  reverse_proxy backend:5000
+}
+

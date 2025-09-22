@@ -1,0 +1,96 @@
+services:
+  #For development only. HTTPS certificate.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - scriptium-net
+
+  tester:
+    image: curlimages/curl:latest
+    networks:
+      - scriptium-net
+    command: sleep infinity
+
+  redis:
+    image: redis:7
+    container_name: redis
+    networks:
+      - scriptium-net
+  sql:
+    build:
+      context: .
+      dockerfile: SqlDockerfile
+    container_name: sql
+    environment:
+      SA_PASSWORD: ${SA_PASSWORD}
+      ACCEPT_EULA: ${ACCEPT_EULA}
+    ports:
+      - "1433:1433"
+    networks:
+      - scriptium-net
+    volumes:
+      - scriptium-db-data:/var/opt/mssql
+
+  backend:
+    build:
+      context: /home/prag/RiderProjects/ScriptiumBackend
+      dockerfile: Dockerfile
+    container_name: scriptium-backend
+    depends_on:
+      sql:
+        condition: service_started
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
+      ConnectionStrings__DefaultConnection: ${DB_CONNECTION_STRING}
+    ports:
+      - "5000:5000"
+    networks:
+      - scriptium-net
+
+  frontend:
+    build:
+      context: /home/prag/WebstormProjects/scriptium-frontend
+      dockerfile: Dockerfile.prod #.dev or .prod. For simulation, I prefer to build in for prod mode in NextJS.
+      args:
+        NEXT_PUBLIC_SERVER_URL: ${NEXT_PUBLIC_SERVER_URL}
+        PRIVATE_SERVER_URL: ${PRIVATE_SERVER_URL}
+        REDIS_URL: ${REDIS_URL}
+    container_name: scriptium-frontend
+    depends_on:
+      backend:
+        condition: service_started
+    environment:
+      # NODE_ENV: development automatically set by Dockerfile
+      PRIVATE_SERVER_URL: ${PRIVATE_SERVER_URL}
+      REDIS_URL: ${REDIS_URL}
+    ports:
+      - "3000:3000"
+    networks:
+      - scriptium-net
+
+  discord-bot:
+    build:
+      context: /home/prag/Desktop/scriptium-discord-bot
+      dockerfile: Dockerfile
+    container_name: discord-bot
+    environment:
+      NODE_ENV: production
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN}
+      SERVER_URL: ${SERVER_URL}
+      WEBSITE_URL: ${WEBSITE_URL}
+      REDIS_URL: ${REDIS_URL}
+    networks:
+      - scriptium-net
+
+networks:
+  scriptium-net:
+    driver: bridge
+
+volumes:
+  scriptium-db-data:
+    external: true
+    name: scriptium-db-data
